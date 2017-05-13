@@ -5,15 +5,17 @@ netcdf module for nginx
 
 ```
 cd /opt/nginx
-CFLAGS="-g -O0" /opt/nginx/auto/configure \
-  --with-debug \
-  --prefix=/opt/build/nginx \
-  --conf-path=conf/nginx.conf \
-  --error-log-path=logs/error.log \
-  --http-log-path=logs/access.log \
-  --without-http_rewrite_module \
-  --without-http_gzip_module \
-  --add-module=/opt/src/main
+#CFLAGS="-g -O0" /opt/nginx/auto/configure \
+#  --with-debug \
+#  --prefix=/opt/build/nginx \
+#  --conf-path=conf/nginx.conf \
+#  --error-log-path=logs/error.log \
+#  --http-log-path=logs/access.log \
+#  --with-http_ssl_module \
+#  --add-module=/opt/src
+
+CFLAGS="-g -O0" /opt/nginx/auto/configure --with-debug --prefix=/opt/build/nginx --conf-path=conf/nginx.conf --error-log-path=logs/error.log --http-log-path=logs/access.log --with-http_ssl_module --add-module=/opt/src
+
 make
 make install
 ```

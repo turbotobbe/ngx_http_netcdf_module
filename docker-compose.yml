@@ -1,0 +1,12 @@
+version: '2'
+services:
+  dev:
+    image: "ubuntu-nginx-dev"
+    ports:
+     - "8080:80"
+    volumes:
+     - .:/opt
+    environment:
+     - PATH=$PATH:/opt/dist/sbin
+    stdin_open: true
+    tty: true

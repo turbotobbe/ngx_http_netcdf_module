@@ -1,33 +1,30 @@
 #!/bin/bash
 
-BUNDLE_NAME="nginx-hello"
-BUNDLE_VERSION="1.0.0"
-
 ROOT=$(cd $(dirname ${BASH_SOURCE[0]}) && pwd)
 BUILD=${ROOT}/build
-MODULE=${ROOT}/mod
+DIST=${ROOT}/dist
+MODULE=${ROOT}/module
 
 [ -d ${BUILD} ] && rm -fr ${BUILD}
 mkdir -p ${BUILD}
 
-cp -R ${ROOT}/nginx ${BUILD}
-find ${BUILD}/nginx -type f -name ".*" | xargs rm
+cp -R ${ROOT}/nginx/* ${BUILD}
 
 if [ -d ${MODULE}/html/ ]; then
   pushd ${MODULE}/html/
   for FILE in $(ls); do
-    [ -f ${BUILD}/nginx/docs/html/${FILE} ] && rm ${BUILD}/nginx/docs/html/${FILE}
-    ln -s ${MODULE}/html/${FILE} ${BUILD}/nginx/docs/html/${FILE}
+    [ -f ${BUILD}/docs/html/${FILE} ] && rm ${BUILD}/docs/html/${FILE}
+    ln -s ${MODULE}/html/${FILE} ${BUILD}/docs/html/${FILE}
   done
   popd
 fi
 
-[ -f ${BUILD}/nginx/conf/nginx.conf ] && rm ${BUILD}/nginx/conf/nginx.conf
-ln -s ${MODULE}/nginx.conf ${BUILD}/nginx/conf/nginx.conf
+[ -f ${BUILD}/conf/nginx.conf ] && rm ${BUILD}/conf/nginx.conf
+ln -s ${MODULE}/nginx.conf ${BUILD}/conf/nginx.conf
 
-pushd ${BUILD}/nginx
+pushd ${BUILD}
 ./auto/configure \
-  --prefix=${BUILD}/${BUNDLE_NAME} \
+  --prefix=${DIST} \
   --conf-path=conf/nginx.conf \
   --error-log-path=logs/error.log \
   --http-log-path=logs/access.log \

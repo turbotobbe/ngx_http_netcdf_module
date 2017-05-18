@@ -1,0 +1,25 @@
+# https://www.nginx.com/resources/wiki/extending/new_config/
+
+# ngx_module_type=HTTP (HTTP, CORE, HTTP_FILTER, HTTP_INIT_FILTER, HTTP_AUX_FILTER, MAIL, STREAM or MISC)
+# ngx_module_name=ngx_http_foo_module ngx_http_bar_module (The names used in this should be the same names as the module definition struct.)
+# ngx_module_incs=(Include paths required to build the module.)
+# ngx_module_deps=(A list of .h files which are part of the module which are required to build it.)
+# ngx_module_srcs="$ngx_addon_dir/ngx_http_foo_module.c $ngx_addon_dir/ngx_http_bar_module.c"
+# ngx_module_libs=-lpthread (macros LIBXSLT, LIBGD, GEOIP, PCRE, OPENSSL, MD5, SHA1, ZLIB and PERL)
+# ngx_addon_name=$ngx_module_name
+# ngx_module_link=(use to test if DYNAMIC or ADDON)
+# ngx_module_order="$ngx_module_name ngx_http_copy_filter"
+
+# --- netcdf ---
+
+ngx_module_type=HTTP
+ngx_module_name=ngx_http_netcdf_module
+ngx_module_incs=
+ngx_module_deps=
+ngx_module_srcs="$ngx_addon_dir/ngx_http_netcdf_module.c"
+ngx_module_libs="-lnetcdf -ljson-c"
+ngx_addon_name=$ngx_module_name
+# ngx_module_link=(use to test if DYNAMIC or ADDON)
+# ngx_module_order="$ngx_module_name ngx_http_copy_filter"
+
+. auto/module

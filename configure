@@ -19,9 +19,6 @@ if [ -d ${MODULE}/html/ ]; then
   popd
 fi
 
-[ -f ${BUILD}/conf/nginx.conf ] && rm ${BUILD}/conf/nginx.conf
-ln -s ${MODULE}/nginx.conf ${BUILD}/conf/nginx.conf
-
 pushd ${BUILD}
 ./auto/configure \
   --prefix=${DIST} \
@@ -32,5 +29,8 @@ pushd ${BUILD}
   --add-module=${MODULE}/src
 popd
 
-#make
-#make install
+make
+make install
+
+[ -f ${DIST}/conf/nginx.conf ] && rm ${DIST}/conf/nginx.conf
+ln -s ${MODULE}/nginx.conf ${DIST}/conf/nginx.conf

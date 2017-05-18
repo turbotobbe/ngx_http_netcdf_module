@@ -1,7 +1,0 @@
-ngx_module_type=http
-ngx_module_name=ngx_http_netcdf_module
-ngx_module_srcs="$ngx_addon_dir/ngx_http_netcdf_module.c"
-
-. auto/module
-
-ngx_addon_name=$ngx_module_name

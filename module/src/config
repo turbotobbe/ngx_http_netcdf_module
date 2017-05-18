@@ -1,11 +1,4 @@
-# ngx_module_type=http
-# ngx_module_name=ngx_http_hello_module
-# ngx_module_srcs="$ngx_addon_dir/ngx_http_hello_module.c"
 
-# . auto/module
-
-# ngx_addon_name=$ngx_module_name
-# ------
 ngx_addon_name=ngx_http_hello_module
 
 ECHO_SRCS="                                                               \

@@ -15,9 +15,9 @@
 ngx_module_type=HTTP
 ngx_module_name=ngx_http_netcdf_module
 ngx_module_incs=
-ngx_module_deps=
-ngx_module_srcs="$ngx_addon_dir/ngx_http_netcdf_module.c"
-ngx_module_libs="-lnetcdf -ljson-c"
+ngx_module_deps="$ngx_addon_dir/nc_json.h"
+ngx_module_srcs="$ngx_addon_dir/ngx_http_netcdf_module.c $ngx_addon_dir/nc_json.c"
+ngx_module_libs="-lnetcdf"
 ngx_addon_name=$ngx_module_name
 # ngx_module_link=(use to test if DYNAMIC or ADDON)
 # ngx_module_order="$ngx_module_name ngx_http_copy_filter"

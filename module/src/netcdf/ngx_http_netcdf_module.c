@@ -33,7 +33,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <netcdf.h>
-#include <json/json.h>
+#include "nc_json.h"
+// #include <json/json.h>
 
 static char *ngx_http_netcdf(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static ngx_int_t ngx_http_netcdf_handler(ngx_http_request_t *r);
@@ -109,77 +110,59 @@ ngx_module_t ngx_http_netcdf_module = {
 static ngx_int_t ngx_http_netcdf_handler(ngx_http_request_t *r)
 {
 
-    /* This will be the netCDF ID for the file and data variable. */
-    int ncid;//, attid;
+    /* This will be the netCDF ID for the file. */
+    int ncid, ndims, nvars, natts, unlimdimid, retval;
 
-    int ndims, nvars, natts, unlimdimid;
-    //ngx_str_t *attname;
-
-    // int data_in[NX][NY];
-
-    /* Loop indexes, and error handling. */
-    int retval;
-
-    char * attname = ngx_palloc(r->pool, sizeof(char)*NC_MAX_NAME);
+    char * attkey = ngx_palloc(r->pool, sizeof(char)*NC_MAX_NAME);
+    ngx_str_t * attval;
     int atttype = 0;
     size_t attlen = 0;
-
-    json_object *root = json_object_new_object();
-    json_object *atts = json_object_new_object();
-    json_object_object_add(root,"atts", atts);
+    nc_json_t *json_root = nc_json_object(r->pool, r->pool);
+    nc_json_t *json_atts = nc_json_object(r->pool, r->pool);
+    nc_json_add_object(json_root, "attributes", json_atts);
 
     ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "FILE %s", nc_filename);
 
-    /* Open the file. NC_NOWRITE tells netCDF we want read-only access
-     * to the file.*/
+    // open file
     if ((retval = nc_open(nc_filename, NC_NOWRITE, &ncid))) {
       ngx_log_error(NGX_LOG_ERR, r->connection->log, retval, nc_strerror(retval));
       return NGX_HTTP_NOT_FOUND;
-    } else {
-      ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "FILE OPEN");
     }
 
+    // get num of dims, vars, atts and unlimdimid
     if ((retval = nc_inq(ncid, &ndims, &nvars, &natts, &unlimdimid))) {
       ngx_log_error(NGX_LOG_ERR, r->connection->log, retval, nc_strerror(retval));
       return NGX_HTTP_NOT_FOUND;
-    } else {
-      ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "NUM INQUIRED");
     }
 
+    // collect atts
     for (int i=0; i<natts; ++i) {
-      ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ATT %d", i);
 
-       if ((retval = nc_inq_attname(ncid, NC_GLOBAL, i, attname))) {
-         ngx_log_error(NGX_LOG_ERR, r->connection->log, retval, nc_strerror(retval));
-         return NGX_HTTP_NOT_FOUND;
-       } else {
-         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ATT NAME %s", attname);
-       }
+      // att name
+      if ((retval = nc_inq_attname(ncid, NC_GLOBAL, i, attkey))) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, retval, nc_strerror(retval));
+        return NGX_HTTP_NOT_FOUND;
+      }
 
-       if ((retval = nc_inq_att(ncid, NC_GLOBAL, attname, &atttype, &attlen))) {
-         ngx_log_error(NGX_LOG_ERR, r->connection->log, retval, nc_strerror(retval));
-         return NGX_HTTP_NOT_FOUND;
-       } else {
-         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ATT TYPE %d LEN %d", atttype, attlen);
-       }
-       void *attval;
-       switch (atttype) {
-         case NC_CHAR: // 2
-            attval = ngx_palloc(r->pool, sizeof(char)*attlen);
-            if ((retval = nc_get_att_text(ncid, NC_GLOBAL, attname, attval))) {
-              ngx_log_error(NGX_LOG_ERR, r->connection->log, retval, nc_strerror(retval));
-              return NGX_HTTP_NOT_FOUND;
-            } else {
-              ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ATT VAL %s", attval);
-            }
-            // ngx_sprintf(buff.pos, "\"%s\":\"%s\"", attval, attval);
-            json_object *val = json_object_new_string(attval);
-            json_object_object_add(atts, attname, val);
+      // att type and len
+      if ((retval = nc_inq_att(ncid, NC_GLOBAL, attkey, &atttype, &attlen))) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, retval, nc_strerror(retval));
+        return NGX_HTTP_NOT_FOUND;
+      }
+
+      switch (atttype) {
+        case NC_CHAR: // 2
+          attval = ngx_palloc(r->pool, sizeof(ngx_str_t));
+          if ((retval = nc_get_att_text(ncid, NC_GLOBAL, attkey, attval))) {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, retval, nc_strerror(retval));
+            return NGX_HTTP_NOT_FOUND;
+          }
+          nc_json_add_string(json_atts, attkey, attval);
           break;
           /*
          case NC_DOUBLE: // 6
            attval = ngx_palloc(r->pool, sizeof(double)*attlen);
-           if ((retval = nc_get_att_double(ncid, NC_GLOBAL, attname, attval))) {
+           if ((retval = nc_get_att_double(ncid, NC_GLOBAL, attkey, attval))) {
              ngx_log_error(NGX_LOG_ERR, r->connection->log, retval, nc_strerror(retval));
              return NGX_HTTP_NOT_FOUND;
            } else {
@@ -205,30 +188,6 @@ static ngx_int_t ngx_http_netcdf_handler(ngx_http_request_t *r)
        }
     }
 
-    /* Get the varid of the data variable, based on its name. */
-    /*
-    if ((retval = nc_inq_varid(ncid, "data", &varid))) {
-      ngx_log_error(NGX_LOG_ERR, r->connection->log, retval, nc_strerror(retval));
-      return NGX_HTTP_NOT_FOUND;
-    }
-    */
-
-    /* Read the data. */
-    /*
-    if ((retval = nc_get_var_int(ncid, varid, &data_in[0][0]))) {
-      ngx_log_error(NGX_LOG_ERR, r->connection->log, retval, nc_strerror(retval));
-      return NGX_HTTP_NOT_FOUND;
-    }
-    */
-
-    /* Check the data. */
-    /*
-    for (x = 0; x < NX; x++)
-       for (y = 0; y < NY; y++)
-      if (data_in[x][y] != x * NY + y)
-         return ERRCODE;
-         */
-
     /* Close the file, freeing all resources. */
     if ((retval = nc_close(ncid))) {
       ngx_log_error(NGX_LOG_ERR, r->connection->log, retval, nc_strerror(retval));
@@ -240,7 +199,7 @@ static ngx_int_t ngx_http_netcdf_handler(ngx_http_request_t *r)
     ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "done reading file %s", nc_filename);
 
     u_char *body = ngx_palloc(r->pool, sizeof(char)*1024);
-    ngx_sprintf(body, "%s",json_object_to_json_string(root));
+    ngx_sprintf(body, "{}");
     size_t bodylen = ngx_strlen(body);
 
     //u_char *body = json_object_to_json_string(root);

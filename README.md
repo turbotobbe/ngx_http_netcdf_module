@@ -16,7 +16,8 @@ git submodule update nginx
 
 To build you need this dependencies installed in your build environment
 ```
-apt-get install build-essential libpcre3-dev  zlib1g-dev libssl-dev libnetcdf-dev netcdf-bin libjson0 libjson0-dev
+apt-get install build-essential libpcre3-dev  zlib1g-dev libssl-dev libnetcdf-dev netcdf-bin
+ libjson0 libjson0-dev
 ```
 
 ## build

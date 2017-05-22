@@ -33,8 +33,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <netcdf.h>
-#include "nc_json.h"
-// #include <json/json.h>
+#include "nc_util.h"
+// #include "nc_json.h"
 
 static char *ngx_http_netcdf(ngx_conf_t *cf, ngx_command_t *cmd, void *conf);
 static ngx_int_t ngx_http_netcdf_handler(ngx_http_request_t *r);
@@ -113,14 +113,22 @@ static ngx_int_t ngx_http_netcdf_handler(ngx_http_request_t *r)
     /* This will be the netCDF ID for the file. */
     int ncid, ndims, nvars, natts, unlimdimid, retval;
 
-    char * attkey = ngx_palloc(r->pool, sizeof(char)*NC_MAX_NAME);
-    ngx_str_t * attval;
-    int atttype = 0;
-    size_t attlen = 0;
-    nc_json_t *json_root = nc_json_object(r->pool, r->pool);
-    nc_json_t *json_atts = nc_json_object(r->pool, r->pool);
-    nc_json_add_object(json_root, "attributes", json_atts);
+    //ngx_list_t      *atts_list = ngx_list_create(r->pool, 100, sizeof(nc_att_t));
+    //ngx_list_part_t *atts_part;
+    //nc_att_t        *att;
 
+// ---------------------------------
+    ngx_hash_keys_arrays_t  att_keys;
+    att_keys.pool = r->pool;
+    att_keys.temp_pool = r->pool;
+    ngx_hash_keys_array_init(&att_keys, NGX_HASH_SMALL);
+// ---------------------------------
+
+/*
+    nc_json_t *json_root = nc_json_object(r->pool);
+    nc_json_t *json_atts = nc_json_object(r->pool);
+    nc_json_add_object(json_root, "attributes", json_atts);
+*/
     ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "FILE %s", nc_filename);
 
     // open file
@@ -135,29 +143,52 @@ static ngx_int_t ngx_http_netcdf_handler(ngx_http_request_t *r)
       return NGX_HTTP_NOT_FOUND;
     }
 
+    char *att_name = ngx_palloc(r->pool, sizeof(char)*NC_MAX_NAME);
+//    u_char *u_att_name;
+    char *att_value;
+
     // collect atts
     for (int i=0; i<natts; ++i) {
 
+      int     att_type;
+      size_t  att_len;
+      //att = nc_att_create(r->pool);
+
       // att name
-      if ((retval = nc_inq_attname(ncid, NC_GLOBAL, i, attkey))) {
+      if ((retval = nc_inq_attname(ncid, NC_GLOBAL, i, att_name))) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, retval, nc_strerror(retval));
         return NGX_HTTP_NOT_FOUND;
       }
 
       // att type and len
-      if ((retval = nc_inq_att(ncid, NC_GLOBAL, attkey, &atttype, &attlen))) {
+      if ((retval = nc_inq_att(ncid, NC_GLOBAL, att_name, &att_type, &att_len))) {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, retval, nc_strerror(retval));
         return NGX_HTTP_NOT_FOUND;
       }
 
-      switch (atttype) {
+      switch (att_type) {
         case NC_CHAR: // 2
-          attval = ngx_palloc(r->pool, sizeof(ngx_str_t));
-          if ((retval = nc_get_att_text(ncid, NC_GLOBAL, attkey, attval))) {
+
+          att_value = ngx_palloc(r->pool, sizeof(char)*att_len);
+          if ((retval = nc_get_att_text(ncid, NC_GLOBAL, att_name, att_value))) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, retval, nc_strerror(retval));
             return NGX_HTTP_NOT_FOUND;
           }
-          nc_json_add_string(json_atts, attkey, attval);
+
+          ngx_str_t *key = ngx_palloc(r->pool, sizeof(ngx_str_t));
+          key->data = (u_char*)att_name;
+          key->len = ngx_strlen(att_name);
+          ngx_str_t *val = ngx_palloc(r->pool, sizeof(ngx_str_t));
+          val->data = (u_char*)att_value;
+          val->len = ngx_strlen(att_value);
+
+          ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "ATT [%d|%s] -> [%d|%s]", key->len, key->data, val->len, val->data);
+
+          ngx_hash_add_key(&att_keys, key, val, NGX_HASH_READONLY_KEY);
+
+          // ---------------------------------
+
+          //nc_json_add_string(json_atts, attkey, attval);
           break;
           /*
          case NC_DOUBLE: // 6
@@ -183,7 +214,7 @@ static ngx_int_t ngx_http_netcdf_handler(ngx_http_request_t *r)
          case NC_UINT64://   11
          case NC_STRING://   12
          default:
-          ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "not supported type %d LEN %d", atttype, attlen);
+          ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "not supported type %d LEN %d", att_type, att_len);
           //return NGX_HTTP_NOT_FOUND;
        }
     }
@@ -198,6 +229,48 @@ static ngx_int_t ngx_http_netcdf_handler(ngx_http_request_t *r)
 
     ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "done reading file %s", nc_filename);
 
+// -----------------------------
+    ngx_hash_t       att_hash;
+    ngx_hash_init_t  hash;
+
+    hash.hash = &att_hash;
+    hash.key = ngx_hash_key;
+    hash.max_size = 512;
+    hash.bucket_size = ngx_align(64, ngx_cacheline_size);
+    hash.name = "att_hash";
+    hash.pool = r->pool;
+    hash.temp_pool = r->pool;
+    ngx_hash_init(&hash, att_keys.keys.elts, att_keys.keys.nelts);
+
+    ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "nelts %d", att_keys.keys.nelts);
+    ngx_str_t *elts = att_keys.keys.elts;
+    for (size_t i=0; i<att_keys.keys.nelts; i++) {
+      ngx_str_t key = elts[i];
+      ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "key %s", key.data);
+    }
+
+// -----------------------------
+
+/*
+    atts_part = &atts_list->part;
+    att = atts_part->elts;
+
+    for (size_t i = 0;; i++) {
+
+        if (i >= atts_part->nelts) {
+            if (atts_part->next == NULL) {
+                break;
+            }
+
+            atts_part = atts_part->next;
+            att = atts_part->elts;
+            i = 0;
+        }
+
+        a = &att[i];
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "att \"%s\":\"%s\"", a->key->name, a->val);
+    }
+*/
     u_char *body = ngx_palloc(r->pool, sizeof(char)*1024);
     ngx_sprintf(body, "{}");
     size_t bodylen = ngx_strlen(body);
@@ -220,7 +293,7 @@ static ngx_int_t ngx_http_netcdf_handler(ngx_http_request_t *r)
     out.next = NULL; /* just one buffer */
 
     b->pos = body; /* first position in memory of the data */
-    b->last = body + (sizeof(char)*bodylen); /* last position in memory of the data */
+    b->last = body + (sizeof(char)*bodylen); /* lngx_string(ast position in memory of the data */
     b->memory = 1; /* content is in read-only memory */
     b->last_buf = 1; /* there will be no more buffers in the request */
 
